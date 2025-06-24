@@ -186,4 +186,60 @@
     } // End of synchronized
 } // End of lastError
 
+#pragma mark -
+#pragma mark Data preparation
+
+- (NSString *)escapeString:(NSString *)aString
+{
+    return [self escapeString:aString includingQuotes:NO];
+}
+
+- (NSString *)escapeAndQuoteString:(NSString *)aString
+{
+    return [self escapeString:aString includingQuotes:YES];
+}
+
+- (NSString *)escapeString:(NSString *)theString includingQuotes:(BOOL)includeQuotes
+{
+    // Return nil strings untouched
+    if (!theString) return theString;
+
+    if(NULL == mysql)
+    {
+        return NULL;
+    }
+        
+    const char *inputCString = [theString UTF8String];
+    unsigned long inputLength = (unsigned long)strlen(inputCString);
+
+    // Allocate memory for the escaped string (2x length + 1 for null terminator)
+    char *escapedCString = (char *)malloc(inputLength * 2 + 1);
+    if (!escapedCString) return nil;
+
+    // Perform escaping
+    unsigned long escapedLength = mysql_real_escape_string(
+                                                           mysql,
+                                                           escapedCString,
+                                                           inputCString,
+                                                           inputLength);
+    if (escapedLength == 0) {
+        free(escapedCString);
+        return nil;
+    }
+    
+    // Create NSString from escaped C string
+    NSString *escapedString = [[NSString alloc] initWithBytes:escapedCString
+                                                       length:escapedLength
+                                                     encoding:NSUTF8StringEncoding];
+    free(escapedCString);
+
+    // wrap the string in single quotes if required
+    if (includeQuotes){
+        NSString *quotedString = [NSString stringWithFormat:@"'%@'", escapedString];
+        return quotedString;
+    }
+    
+    return escapedString;
+}
+
 @end

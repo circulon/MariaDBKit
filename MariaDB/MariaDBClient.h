@@ -35,6 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Below attribute lets it work with try rather than requiring NSError ptr
 // __attribute__((swift_error(nonnull_error)))
 
+- (NSString*) escapeString: (NSString*) query;
+- (NSString*) escapeAndQuoteString: (NSString*) query;
+- (NSString *)escapeString:(NSString *)theString includingQuotes:(BOOL)includeQuotes;
+
 @end
 
 NS_ASSUME_NONNULL_END
