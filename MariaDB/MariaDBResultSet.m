@@ -176,7 +176,6 @@
 
 - (id) objectForColumnIndex: (NSUInteger) columnIndex
 {
-    id result = nil;
     /*
      enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
      MYSQL_TYPE_SHORT,  MYSQL_TYPE_LONG,
@@ -205,173 +204,172 @@
     // No data, then we are a null.
     if(NULL == internalMySQLRow[columnIndex])
     {
-        result = [NSNull null];
+        return [NSNull null];
     }
-    else
+    
+    BOOL isEnum = NO;
+    BOOL isSet  = NO;
+    
+    if((currentField.flags & ENUM_FLAG) == ENUM_FLAG)
     {
-        BOOL isEnum = NO;
-        BOOL isSet  = NO;
-        
-        if((currentField.flags & ENUM_FLAG) == ENUM_FLAG)
+        isEnum = YES;
+    }
+    
+    if((currentField.flags & SET_FLAG) == SET_FLAG)
+    {
+        isSet = YES;
+    }
+    
+    if(isEnum || isSet)
+    {
+        NSLog(@"Is flag or enum.");
+    }
+    
+    id result = nil;
+    switch(currentField.type)
+    {
+        case MYSQL_TYPE_YEAR:
+        case MYSQL_TYPE_INT24:
+        case MYSQL_TYPE_TINY:
+        case MYSQL_TYPE_SHORT:
+        case MYSQL_TYPE_LONG:
+        case MYSQL_TYPE_LONGLONG:
         {
-            isEnum = YES;
+            NSString * tempString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+            result = [numberFormatter numberFromString: tempString];
+            break;
         }
-        
-        if((currentField.flags & SET_FLAG) == SET_FLAG)
+        case MYSQL_TYPE_TIME:
+        case MYSQL_TYPE_TIMESTAMP:
+        case MYSQL_TYPE_DATETIME:
+        case MYSQL_TYPE_DATE:
         {
-            isSet = YES;
-        }
-        
-        if(isEnum || isSet)
-        {
-            NSLog(@"Is flag or enum.");
-        }
-        
-        switch(currentField.type)
-        {
-            case MYSQL_TYPE_YEAR:
-            case MYSQL_TYPE_INT24:
-            case MYSQL_TYPE_TINY:
-            case MYSQL_TYPE_SHORT:
-            case MYSQL_TYPE_LONG:
-            case MYSQL_TYPE_LONGLONG:
+            NSString * dateString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+            
+            NSRange decimalRange = [dateString rangeOfString: @"."
+                                                     options: NSBackwardsSearch];
+            
+            NSUInteger nanoseconds = 0;
+            if(NSNotFound != decimalRange.location)
             {
-                NSString * tempString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
-                result = [numberFormatter numberFromString: tempString];
-                break;
+                NSString * nanosecondsString = [dateString substringFromIndex: decimalRange.location + 1];
+                nanoseconds = nanosecondsString.integerValue;
+            } // End of we have milliseconds
+            
+            // TempFix -- 0000-00-00 00:00:00 is not handled by dateDetector, so we check
+            // and handle it ourself.
+            NSString * tempString = [dateString stringByReplacingOccurrencesOfString: @"0"
+                                                                          withString: @""];
+            
+            tempString = [tempString stringByReplacingOccurrencesOfString: @":"
+                                                               withString: @""];
+            
+            tempString = [tempString stringByReplacingOccurrencesOfString: @"-"
+                                                               withString: @""];
+            
+            tempString = [tempString stringByReplacingOccurrencesOfString: @" "
+                                                               withString: @""];
+            
+            if(0 == tempString.length)
+            {
+                result = dateString;
             }
-            case MYSQL_TYPE_TIME:
-            case MYSQL_TYPE_TIMESTAMP:
-            case MYSQL_TYPE_DATETIME:
-            case MYSQL_TYPE_DATE:
+            else
             {
-                NSString * dateString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+                __block NSDate * detectedDate = nil;
+                [dateDetector enumerateMatchesInString: dateString
+                                               options: kNilOptions
+                                                 range: NSMakeRange(0, [dateString length])
+                                            usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop)
+                 {
+                     detectedDate = result.date;
+                 }];
                 
-                NSRange decimalRange = [dateString rangeOfString: @"."
-                                                         options: NSBackwardsSearch];
-                
-                NSUInteger nanoseconds = 0;
-                if(NSNotFound != decimalRange.location)
-                {
-                    NSString * nanosecondsString = [dateString substringFromIndex: decimalRange.location + 1];
-                    nanoseconds = nanosecondsString.integerValue;
-                } // End of we have milliseconds
-                
-                // TempFix -- 0000-00-00 00:00:00 is not handled by dateDetector, so we check
-                // and handle it ourself.
-                NSString * tempString = [dateString stringByReplacingOccurrencesOfString: @"0"
-                                                                              withString: @""];
-                
-                tempString = [tempString stringByReplacingOccurrencesOfString: @":"
-                                                                   withString: @""];
-                
-                tempString = [tempString stringByReplacingOccurrencesOfString: @"-"
-                                                                   withString: @""];
-                
-                tempString = [tempString stringByReplacingOccurrencesOfString: @" "
-                                                                   withString: @""];
-                
-                if(0 == tempString.length)
+                if(nil == detectedDate || 0 != nanoseconds)
                 {
                     result = dateString;
-                }
+                } // End of we have millseconds
                 else
                 {
-                    __block NSDate * detectedDate = nil;
-                    [dateDetector enumerateMatchesInString: dateString
-                                                   options: kNilOptions
-                                                     range: NSMakeRange(0, [dateString length])
-                                                usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop)
-                     {
-                         detectedDate = result.date;
-                     }];
+                    result = detectedDate;
+                }
+            }
+            
+            break;
+        }
+        case MYSQL_TYPE_LONG_BLOB:
+        case MYSQL_TYPE_MEDIUM_BLOB:
+        case MYSQL_TYPE_BLOB:
+        case MYSQL_TYPE_STRING:
+        case MYSQL_TYPE_VAR_STRING:
+        case MYSQL_TYPE_JSON:
+        {
+            if(MYSQL_TYPE_JSON == currentField.type)
+            {
+                result = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+            }
+            else if(63 == currentField.charsetnr)
+            {
+                result = [NSData dataWithBytes: internalMySQLRow[columnIndex]
+                                        length: [currentRowFieldLengths[columnIndex] unsignedIntegerValue]];
+                
+                if(nil != result)
+                {
+                    NSString * stringResult = [[NSString alloc] initWithData: result
+                                                                    encoding: NSUTF8StringEncoding];
                     
-                    if(nil == detectedDate || 0 != nanoseconds)
+                    if(stringResult.length == ((NSData*)result).length)
                     {
-                        result = dateString;
-                    } // End of we have millseconds
-                    else
-                    {
-                        result = detectedDate;
+                        result = stringResult;
                     }
                 }
-                
-                break;
             }
-            case MYSQL_TYPE_LONG_BLOB:
-            case MYSQL_TYPE_MEDIUM_BLOB:
-            case MYSQL_TYPE_BLOB:
-            case MYSQL_TYPE_STRING:
-            case MYSQL_TYPE_VAR_STRING:
-            case MYSQL_TYPE_JSON:
+            else
             {
-                if(MYSQL_TYPE_JSON == currentField.type)
-                {
-                    result = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
-                }
-                else if(63 == currentField.charsetnr)
-                {
-                    result = [NSData dataWithBytes: internalMySQLRow[columnIndex]
-                                            length: [currentRowFieldLengths[columnIndex] unsignedIntegerValue]];
-                    
-                    if(nil != result)
-                    {
-                        NSString * stringResult = [[NSString alloc] initWithData: result
-                                                                        encoding: NSUTF8StringEncoding];
-                        
-                        if(stringResult.length == ((NSData*)result).length)
-                        {
-                            result = stringResult;
-                        }
-                    }
-                }
-                else
-                {
-                    result = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
-                }
-                break;
+                result = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
             }
-            case MYSQL_TYPE_BIT:
+            break;
+        }
+        case MYSQL_TYPE_BIT:
+        {
+            if(0 == internalMySQLRow[columnIndex][0])
             {
-                if(0 == internalMySQLRow[columnIndex][0])
-                {
-                    result = [NSNumber numberWithBool: NO];
-                }
-                else
-                {
-                    result = [NSNumber numberWithBool: YES];
-                }
-                break;
+                result = [NSNumber numberWithBool: NO];
             }
-            case MYSQL_TYPE_FLOAT:
-            case MYSQL_TYPE_DECIMAL:
-            case MYSQL_TYPE_DOUBLE:
-            case MYSQL_TYPE_NEWDECIMAL:
+            else
             {
-                NSString * stringValue =
-                [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
-                
-                NSDecimalNumber * number =
-                [NSDecimalNumber decimalNumberWithString: stringValue];
-                
-                result = number;
-                
-                break;
+                result = [NSNumber numberWithBool: YES];
             }
-            default:
-            {
-                NSAssert2(false, @"Invalid field type %d (column %@).",
-                          internalFields[columnIndex].type,
-                          columnNames[columnIndex]);
-                break;
-            }
-        } // End of data type switch
-    } // End of data was not null
+            break;
+        }
+        case MYSQL_TYPE_FLOAT:
+        case MYSQL_TYPE_DECIMAL:
+        case MYSQL_TYPE_DOUBLE:
+        case MYSQL_TYPE_NEWDECIMAL:
+        {
+            NSString * stringValue =
+            [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+            
+            NSDecimalNumber * number =
+            [NSDecimalNumber decimalNumberWithString: stringValue];
+            
+            result = number;
+            
+            break;
+        }
+        default:
+        {
+            NSAssert2(false, @"Invalid field type %d (column %@).",
+                      internalFields[columnIndex].type,
+                      columnNames[columnIndex]);
+            break;
+        }
+    } // End of data type switch
     
     // If we were unable to set our result, then null it.
     if(nil == result)
     {
-        result = [NSNull null];
+        return [NSNull null];
     }
     
     return result;
