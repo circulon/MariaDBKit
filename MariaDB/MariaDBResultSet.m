@@ -161,7 +161,7 @@
 }
 
 - (BOOL)columnIsNullForIndex:(NSInteger)columnIndex{
-    return (NULL == internalMySQLRow[columnIndex])
+    return (NULL == internalMySQLRow[columnIndex]);
 }
 
 - (id) objectForColumn: (NSString*) columnName
