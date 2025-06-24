@@ -89,6 +89,12 @@
     } // End of clear the result set
 } // End of dealloc
 
+- (NSInteger) rowCount
+{
+    return affectedRows;
+} // End of numberOfAffectedRows
+
+
 - (NSInteger) numberOfAffectedRows
 {
     return affectedRows;

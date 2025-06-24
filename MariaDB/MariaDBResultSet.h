@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (id) objectForColumnIndex: (NSUInteger) columnIndex;
 - (id) objectForColumn: (NSString*) columnName;
 
+@property(nonatomic,readonly) NSInteger rowCount;
 @property(nonatomic,retain,readonly) NSArray<NSString*>* columnNames;
 
 @end
