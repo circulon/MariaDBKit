@@ -153,6 +153,17 @@
     return columnNames[columnIdx];
 }
 
+- (BOOL)columnIsNull:(NSString *)columnName{
+    // Get our columnIndex
+    NSUInteger columnIndex = [columnNames indexOfObject: columnName];
+                
+    return [self columnIsNullForIndex:columnIndex];
+}
+
+- (BOOL)columnIsNullForIndex:(NSInteger)columnIndex{
+    return (NULL == internalMySQLRow[columnIndex])
+}
+
 - (id) objectForColumn: (NSString*) columnName
 {
     // Get our columnIndex
