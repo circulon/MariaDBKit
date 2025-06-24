@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL) next: (NSError*__autoreleasing*) error NS_SWIFT_NOTHROW;
 - (id) objectForColumnIndex: (NSUInteger) columnIndex;
+- (id) objectForColumn: (NSString*) columnName;
 
 @property(nonatomic,retain,readonly) NSArray<NSString*>* columnNames;
 
