@@ -129,7 +129,8 @@
     
     // Set our currentRowField lengths
     currentRowFieldLengths = outLengths.copy;
-
+    currentRowIndex++;
+    
     return YES;
 } // End of next
 
