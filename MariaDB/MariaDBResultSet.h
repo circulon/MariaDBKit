@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (id) objectForColumn: (NSString*) columnName;
 - (BOOL)columnIsNull:(NSString*)columnName;
 - (BOOL)columnIndexIsNull:(NSInteger)columnIndex;
+- (NSDictionary*) asDictionary;
 
 @property(nonatomic,readonly) NSUInteger affectedRows;
 @property(nonatomic,retain,readonly) NSArray<NSString*>* columnNames;

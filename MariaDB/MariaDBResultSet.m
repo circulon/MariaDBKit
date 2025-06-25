@@ -439,4 +439,23 @@
     return [formatter numberFromString: temp];
 } // End of numberForColumnIndex:
 
+#pragma mark -
+#pragma mark Row transforms
+
+- (NSDictionary *)asDictionary
+{
+    // the query was successful but has no columns
+    if ([self columnCount] == 0) {
+        return [NSDictionary dictionary];
+    }
+
+    NSMutableDictionary *rowDict = [NSMutableDictionary dictionary];
+    for (NSString *column in columnNames) {
+        NSUInteger columnIndex = [columnNames indexOfObject: column];
+        rowDict[column] = [self objectForColumnIndex: columnIndex];
+    }
+    return (NSDictionary*)rowDict;
+}
+
+
 @end
