@@ -11,7 +11,6 @@
 
 @interface MariaDBResultSet ()
 {
-    NSInteger           affectedRows;
     
     unsigned long long  totalRows;
     NSUInteger          totalFields;
@@ -42,8 +41,6 @@
     self = [super init];
     if(self)
     {
-        affectedRows = 0;
-        
         // The number formatter
         numberFormatter = [[NSNumberFormatter alloc] init];
         [numberFormatter setNumberStyle: NSNumberFormatterDecimalStyle];
@@ -89,16 +86,10 @@
     } // End of clear the result set
 } // End of dealloc
 
-- (NSInteger) rowCount
+- (NSUInteger) affectedRows
 {
-    return affectedRows;
-} // End of numberOfAffectedRows
-
-
-- (NSInteger) numberOfAffectedRows
-{
-    return affectedRows;
-} // End of numberOfAffectedRows
+    return (NSUInteger)totalRows;
+} // End of affectedRows
 
 - (NSArray<NSString*>*) columnNames
 {
