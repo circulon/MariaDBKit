@@ -103,35 +103,34 @@
         return NO;
     } // End of we have no internal mysql results
     
-    // If we have a row
+    // attempt to get next row
     internalMySQLRow = mysql_fetch_row(internalMySQLResult);
-    
-    if(NULL != internalMySQLRow)
+    if(NULL == internalMySQLRow)
     {
-        unsigned long * myLengths = mysql_fetch_lengths(internalMySQLResult);
-        NSMutableArray * outLengths = [NSMutableArray array];
-        for(NSUInteger index = 0;
-            index < columnNames.count;
-            ++index)
+        // Whenever we fail to query, check if we have an error.
+        if(error != NULL)
         {
-            outLengths[index] = [NSNumber numberWithUnsignedLong: myLengths[index]];
-        }
+            *error = [NSError errorWithDomain: @""
+                                         code: 0
+                                     userInfo: @{NSLocalizedDescriptionKey :@"Error"}];
+        } // End of failed to query
         
-        // Set our currentRowField lengths
-        currentRowFieldLengths = outLengths.copy;
-        
-        return YES;
+        return NO;
     }
     
-    // Whenever we fail to query, check if we have an error.
-    if(error != NULL)
+    unsigned long * myLengths = mysql_fetch_lengths(internalMySQLResult);
+    NSMutableArray * outLengths = [NSMutableArray array];
+    for(NSUInteger index = 0;
+        index < columnNames.count;
+        ++index)
     {
-        *error = [NSError errorWithDomain: @""
-                                     code: 0
-                                 userInfo: @{NSLocalizedDescriptionKey :@"Error"}];
-    } // End of failed to query
+        outLengths[index] = [NSNumber numberWithUnsignedLong: myLengths[index]];
+    }
     
-    return NO;
+    // Set our currentRowField lengths
+    currentRowFieldLengths = outLengths.copy;
+
+    return YES;
 } // End of next
 
 - (NSUInteger)columnCount
