@@ -160,7 +160,7 @@
     return [self columnIsNullForIndex:columnIndex];
 }
 
-- (BOOL)columnIsNullForIndex:(NSInteger)columnIndex{
+- (BOOL)columnIndexIsNull:(NSInteger)columnIndex{
     return (NULL == internalMySQLRow[columnIndex]);
 }
 
