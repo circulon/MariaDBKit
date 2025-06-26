@@ -51,8 +51,8 @@
     _internalMySQLResult = result;
     if(NULL == _internalMySQLResult) { return self; }
 
-    _totalFields = mysql_num_fields(_internalMySQLResult);
     _totalRows   = mysql_num_rows(_internalMySQLResult);
+    _totalFields = mysql_num_fields(_internalMySQLResult);
     _currentRowIndex = 0;
 
     _internalFields = mysql_fetch_fields(result);
@@ -71,8 +71,10 @@
     // Get our field names
     columnNames         = _columnNames.copy;
     columnTypes         = _columnTypes.copy;
-        
+    
+    NSLog(@"totalRows: %llul", _totalRows);
     if (_totalRows) {
+        NSLog(@"Loading Initial row index: %llul", _currentRowIndex);
         [self _loadRowAtIndex:_currentRowIndex];
     }
     
@@ -405,6 +407,8 @@
     if (NULL == _internalMySQLRow) {
         return NO;
     }
+    
+    NSLog(@"got row at index: %ul", index);
     
     // store the field lengths for this row
     unsigned long * myLengths = mysql_fetch_lengths(_internalMySQLResult);
