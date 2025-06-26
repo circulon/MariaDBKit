@@ -51,11 +51,11 @@
     _internalMySQLResult = result;
     if(NULL == _internalMySQLResult) { return self; }
 
-    _totalRows   = mysql_num_rows(_internalMySQLResult);
     _totalFields = mysql_num_fields(_internalMySQLResult);
+    _totalRows   = mysql_num_rows(_internalMySQLResult);
     _currentRowIndex = 0;
 
-    _internalFields = mysql_fetch_fields(result);
+    _internalFields = mysql_fetch_fields(_internalMySQLResult);
     
     NSMutableArray * _columnNames  = [NSMutableArray array];
     NSMutableArray * _columnTypes = [NSMutableArray array];
@@ -72,7 +72,11 @@
     columnNames         = _columnNames.copy;
     columnTypes         = _columnTypes.copy;
     
+//    NSLog(@"internal fields: %@", _internalFields);
+//    NSLog(@"column names: %@", _columnNames);
+//    NSLog(@"column types: %@", _columnTypes);
     NSLog(@"totalRows: %llu", _totalRows);
+    NSLog(@"totalFields: %lu", _totalFields);
     if (_totalRows > 0) {
         NSLog(@"Loading Initial row index: %llul", _currentRowIndex);
         [self _loadRowAtIndex:_currentRowIndex];
