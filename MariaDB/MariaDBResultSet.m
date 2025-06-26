@@ -73,7 +73,7 @@
     columnTypes         = _columnTypes.copy;
         
     if (_totalRows) {
-        [self _loadRowAtIndex:_currentRowIndex]
+        [self _loadRowAtIndex:_currentRowIndex];
     }
     
     return self;
@@ -233,7 +233,7 @@
             else
             {
                 __block NSDate * detectedDate = nil;
-                [dateDetector enumerateMatchesInString: dateString
+                [_dateDetector enumerateMatchesInString: dateString
                                                options: kNilOptions
                                                  range: NSMakeRange(0, [dateString length])
                                             usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop)
@@ -400,7 +400,7 @@
     }
 
     // attempt to get the row
-    mysql_data_seek(_result, index);
+    mysql_data_seek(_internalMySQLResult, index);
     _internalMySQLRow = mysql_fetch_row(_internalMySQLResult);
     if (NULL == _internalMySQLRow) {
         return NO;
