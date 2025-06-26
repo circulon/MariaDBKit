@@ -72,8 +72,8 @@
     columnNames         = _columnNames.copy;
     columnTypes         = _columnTypes.copy;
     
-    NSLog(@"totalRows: %llul", _totalRows);
-    if (_totalRows) {
+    NSLog(@"totalRows: %llu", _totalRows);
+    if (_totalRows > 0) {
         NSLog(@"Loading Initial row index: %llul", _currentRowIndex);
         [self _loadRowAtIndex:_currentRowIndex];
     }
@@ -374,7 +374,7 @@
     }
 
     // Seek to the previous position if appropriate
-    if (previousRowIndex) {
+    if (previousRowIndex != _currentRowIndex) {
         _currentRowIndex = previousRowIndex;
         [self _loadRowAtIndex:previousRowIndex];
     }
