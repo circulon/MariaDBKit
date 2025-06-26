@@ -11,17 +11,17 @@
 
 @interface MariaDBResultSet ()
 {
+    unsigned long long  _totalRows;
+    unsigned long long  _currentRowIndex;
+    NSUInteger          _totalFields;
     
-    unsigned long long  totalRows;
-    NSUInteger          totalFields;
+    MYSQL_RES           * _internalMySQLResult;
+    MYSQL_ROW           _internalMySQLRow;
     
-    MYSQL_RES           * internalMySQLResult;
-    MYSQL_ROW           internalMySQLRow;
+    MYSQL_FIELD         * _internalFields;
     
-    MYSQL_FIELD         * internalFields;
-    
-    NSNumberFormatter   * numberFormatter;
-    NSDataDetector      * dateDetector;
+    NSNumberFormatter   * _numberFormatter;
+    NSDataDetector      * _dateDetector;
 }
 
 @property(nonatomic,copy) NSArray * columnNames;
@@ -31,7 +31,7 @@
 
 @implementation MariaDBResultSet
 {
-    NSArray * currentRowFieldLengths;
+    NSArray * _currentRowFieldLengths;
 }
 
 @synthesize columnNames, columnTypes;
@@ -39,104 +39,69 @@
 - (id) initWithResult: (MYSQL_RES*) result
 {
     self = [super init];
-    if(self)
+    if(!self) { return nil; }
+    // The number formatter
+    _numberFormatter = [[NSNumberFormatter alloc] init];
+    [_numberFormatter setNumberStyle: NSNumberFormatterDecimalStyle];
+    
+    // Data detector
+    _dateDetector = [NSDataDetector dataDetectorWithTypes: NSTextCheckingTypeDate
+                                                   error: nil];
+    
+    _internalMySQLResult = result;
+    if(NULL == _internalMySQLResult) { return self; }
+
+    _totalFields = mysql_num_fields(_internalMySQLResult);
+    _totalRows   = mysql_num_rows(_internalMySQLResult);
+    _currentRowIndex = 0;
+
+    _internalFields = mysql_fetch_fields(result);
+    
+    NSMutableArray * _columnNames  = [NSMutableArray array];
+    NSMutableArray * _columnTypes = [NSMutableArray array];
+    NSMutableArray * _charSets    = [NSMutableArray array];
+    
+    for(int i = 0; i < _totalFields; i++)
     {
-        // The number formatter
-        numberFormatter = [[NSNumberFormatter alloc] init];
-        [numberFormatter setNumberStyle: NSNumberFormatterDecimalStyle];
+        [_columnNames addObject: [NSString stringWithUTF8String: _internalFields[i].name]];
+        [_columnTypes addObject: [NSNumber numberWithInt: _internalFields[i].type]];
+        [_charSets addObject: [NSNumber numberWithInt: _internalFields[i].charsetnr]];
+    } // End of finished
+    
+    // Get our field names
+    columnNames         = _columnNames.copy;
+    columnTypes         = _columnTypes.copy;
         
-        // Data detector
-        dateDetector = [NSDataDetector dataDetectorWithTypes: NSTextCheckingTypeDate
-                                                       error: nil];
-        
-        internalMySQLResult = result;
-        if(NULL != internalMySQLResult)
-        {
-            totalFields = mysql_num_fields(internalMySQLResult);
-            totalRows   = mysql_num_rows(internalMySQLResult);
-            
-            internalFields = mysql_fetch_fields(result);
-            
-            NSMutableArray * _columnNames  = [NSMutableArray array];
-            NSMutableArray * _columnTypes = [NSMutableArray array];
-            NSMutableArray * _charSets    = [NSMutableArray array];
-            
-            for(int i = 0; i < totalFields; i++)
-            {
-                [_columnNames addObject: [NSString stringWithUTF8String: internalFields[i].name]];
-                [_columnTypes addObject: [NSNumber numberWithInt: internalFields[i].type]];
-                [_charSets addObject: [NSNumber numberWithInt: internalFields[i].charsetnr]];
-            } // End of finished
-            
-            // Get our field names
-            columnNames         = _columnNames.copy;
-            columnTypes         = _columnTypes.copy;
-        } // End of we have an internalMySQLResult
-    } // End of if self init
+    if (_totalRows) {
+        [self _loadRowAtIndex:_currentRowIndex]
+    }
     
     return self;
 } // End of init
 
 - (void) dealloc
 {
-    if(NULL != internalMySQLResult)
+    if(NULL != _internalMySQLResult)
     {
-        mysql_free_result(internalMySQLResult);
-        internalMySQLResult = NULL;
+        _internalMySQLRow = NULL;
+        mysql_free_result(_internalMySQLResult);
+        _internalMySQLResult = NULL;
     } // End of clear the result set
 } // End of dealloc
 
-- (NSUInteger) affectedRows
+- (NSUInteger) rowCount
 {
-    return (NSUInteger)totalRows;
-} // End of affectedRows
+    return (NSUInteger)_totalRows;
+}
 
 - (NSArray<NSString*>*) columnNames
 {
     return columnNames;
-} // End of columnNames
-
-- (BOOL) next: (NSError*__autoreleasing*) error
-{
-    if(NULL == internalMySQLResult)
-    {
-        return NO;
-    } // End of we have no internal mysql results
-    
-    // attempt to get next row
-    internalMySQLRow = mysql_fetch_row(internalMySQLResult);
-    if(NULL == internalMySQLRow)
-    {
-        // Whenever we fail to query, check if we have an error.
-        if(error != NULL)
-        {
-            *error = [NSError errorWithDomain: @""
-                                         code: 0
-                                     userInfo: @{NSLocalizedDescriptionKey :@"Error"}];
-        } // End of failed to query
-        
-        return NO;
-    }
-    
-    unsigned long * myLengths = mysql_fetch_lengths(internalMySQLResult);
-    NSMutableArray * outLengths = [NSMutableArray array];
-    for(NSUInteger index = 0;
-        index < columnNames.count;
-        ++index)
-    {
-        outLengths[index] = [NSNumber numberWithUnsignedLong: myLengths[index]];
-    }
-    
-    // Set our currentRowField lengths
-    currentRowFieldLengths = outLengths.copy;
-    currentRowIndex++;
-    
-    return YES;
-} // End of next
+}
 
 - (NSUInteger)columnCount
 {
-    return totalFields;
+    return _totalFields;
 }
 
 - (NSString*)columnNameForIndex:(int)columnIdx
@@ -148,11 +113,11 @@
     // Get our columnIndex
     NSUInteger columnIndex = [columnNames indexOfObject: columnName];
                 
-    return [self columnIsNullForIndex:columnIndex];
+    return [self columnAtIndexIsNull:columnIndex];
 }
 
-- (BOOL)columnIndexIsNull:(NSInteger)columnIndex{
-    return (NULL == internalMySQLRow[columnIndex]);
+- (BOOL)columnAtIndexIsNull:(NSInteger)columnIndex{
+    return (NULL == _internalMySQLRow[columnIndex]);
 }
 
 - (id) objectForColumn: (NSString*) columnName
@@ -190,10 +155,10 @@
      MAX_NO_FIELD_TYPES
      */
     //    NSLog(@"Internal row: %s", );
-    MYSQL_FIELD currentField = internalFields[columnIndex];
+    MYSQL_FIELD currentField = _internalFields[columnIndex];
     
     // No data, then we are a null.
-    if(NULL == internalMySQLRow[columnIndex])
+    if(NULL == _internalMySQLRow[columnIndex])
     {
         return [NSNull null];
     }
@@ -226,8 +191,8 @@
         case MYSQL_TYPE_LONG:
         case MYSQL_TYPE_LONGLONG:
         {
-            NSString * tempString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
-            result = [numberFormatter numberFromString: tempString];
+            NSString * tempString = [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
+            result = [_numberFormatter numberFromString: tempString];
             break;
         }
         case MYSQL_TYPE_TIME:
@@ -235,7 +200,7 @@
         case MYSQL_TYPE_DATETIME:
         case MYSQL_TYPE_DATE:
         {
-            NSString * dateString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+            NSString * dateString = [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
             
             NSRange decimalRange = [dateString rangeOfString: @"."
                                                      options: NSBackwardsSearch];
@@ -297,12 +262,12 @@
         {
             if(MYSQL_TYPE_JSON == currentField.type)
             {
-                result = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+                result = [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
             }
             else if(63 == currentField.charsetnr)
             {
-                result = [NSData dataWithBytes: internalMySQLRow[columnIndex]
-                                        length: [currentRowFieldLengths[columnIndex] unsignedIntegerValue]];
+                result = [NSData dataWithBytes: _internalMySQLRow[columnIndex]
+                                        length: [_currentRowFieldLengths[columnIndex] unsignedIntegerValue]];
                 
                 if(nil != result)
                 {
@@ -317,13 +282,13 @@
             }
             else
             {
-                result = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+                result = [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
             }
             break;
         }
         case MYSQL_TYPE_BIT:
         {
-            if(0 == internalMySQLRow[columnIndex][0])
+            if(0 == _internalMySQLRow[columnIndex][0])
             {
                 result = [NSNumber numberWithBool: NO];
             }
@@ -339,7 +304,7 @@
         case MYSQL_TYPE_NEWDECIMAL:
         {
             NSString * stringValue =
-            [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+            [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
             
             NSDecimalNumber * number =
             [NSDecimalNumber decimalNumberWithString: stringValue];
@@ -351,7 +316,7 @@
         default:
         {
             NSAssert2(false, @"Invalid field type %d (column %@).",
-                      internalFields[columnIndex].type,
+                      _internalFields[columnIndex].type,
                       columnNames[columnIndex]);
             break;
         }
@@ -366,6 +331,106 @@
     return result;
 } // End of objectForColumnIndex
 
+
+#pragma mark -
+#pragma mark Row transforms
+
+- (NSDictionary *)rowAsDictionary
+{
+    // the query was successful but has no columns
+    if ([self columnCount] == 0) {
+        return [NSDictionary dictionary];
+    }
+
+    NSMutableDictionary *rowDict = [NSMutableDictionary dictionary];
+    for (NSString *column in columnNames) {
+        NSUInteger columnIndex = [columnNames indexOfObject: column];
+        rowDict[column] = [self objectForColumnIndex: columnIndex];
+    }
+    return (NSDictionary*)[rowDict copy];
+}
+
+- (NSArray *)allRows
+{
+    if (_totalRows == 0) {
+        return nil;
+    }
+    
+    NSMutableArray * allRows = [NSMutableArray array];
+    // add the current (
+    
+    // store the current position
+    unsigned long long previousRowIndex = _currentRowIndex;
+    //reset the position
+    [self reset];
+
+    // add the first row
+    [allRows addObject:[self rowAsDictionary]];
+    // Loop over the remaining rows
+    while([self nextRow]){
+        [allRows addObject:[self rowAsDictionary]];
+    }
+
+    // Seek to the previous position if appropriate
+    if (previousRowIndex) {
+        _currentRowIndex = previousRowIndex;
+        [self _loadRowAtIndex:previousRowIndex];
+    }
+    
+    // Instead of empty arrays, return nil if there are no rows.
+    if (![allRows count]) {
+        allRows = nil;
+        return nil;
+    }
+
+    return (NSArray*)[allRows copy];
+}
+   
+- (BOOL)nextRow {
+    if (_currentRowIndex >= _totalRows) {
+        return NO;
+    }
+
+    return [self _loadRowAtIndex:_currentRowIndex++];
+}
+   
+- (BOOL)_loadRowAtIndex:(unsigned long)index {
+    if (index >= _totalRows) {
+        return NO;
+    }
+
+    // attempt to get the row
+    mysql_data_seek(_result, index);
+    _internalMySQLRow = mysql_fetch_row(_internalMySQLResult);
+    if (NULL == _internalMySQLRow) {
+        return NO;
+    }
+    
+    // store the field lengths for this row
+    unsigned long * myLengths = mysql_fetch_lengths(_internalMySQLResult);
+    NSMutableArray * outLengths = [NSMutableArray array];
+    for(NSUInteger index = 0;
+        index < columnNames.count;
+        ++index)
+    {
+        outLengths[index] = [NSNumber numberWithUnsignedLong: myLengths[index]];
+    }
+    // Set our currentRowField lengths
+    _currentRowFieldLengths = outLengths.copy;
+    
+    return YES;
+}
+
+- (void)reset {
+    if (_currentRowIndex == 0) { return; }
+
+    _currentRowIndex = 0;
+    mysql_data_seek(_internalMySQLResult, 0);
+}
+
+#pragma mark -
+#pragma mark Field Datatype Transforms
+
 - (NSNumber*) boolForColumn: (NSString*) columnName
 {
     // Get our columnIndex
@@ -378,12 +443,12 @@
 
 - (NSNumber*) boolForColumnIndex: (NSUInteger) columnIndex
 {
-    if(nil == internalMySQLRow[columnIndex])
+    if(nil == _internalMySQLRow[columnIndex])
     {
         return nil;
     }
     
-    NSString * tempString = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+    NSString * tempString = [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
     return [NSNumber numberWithBool: [tempString boolValue]];
 } // End of boolForColumnIndex
 
@@ -399,12 +464,12 @@
 
 - (NSString*) stringForColumnIndex: (NSUInteger) columnIndex
 {
-    if(nil == internalMySQLRow[columnIndex])
+    if(nil == _internalMySQLRow[columnIndex])
     {
         return nil;
     } // End of entry is nil
     
-    id result = [[NSString alloc] initWithUTF8String: internalMySQLRow[columnIndex]];
+    id result = [[NSString alloc] initWithUTF8String: _internalMySQLRow[columnIndex]];
     
     if([NSNull null] == result)
     {
@@ -426,36 +491,18 @@
 
 - (NSNumber*) numberForColumnIndex: (NSUInteger) columnIndex
 {
-    if(nil == internalMySQLRow[columnIndex])
+    if(nil == _internalMySQLRow[columnIndex])
     {
         return nil;
     } // End of entry is nil
     
-    NSString * temp = [NSString stringWithUTF8String: internalMySQLRow[columnIndex]];
+    NSString * temp = [NSString stringWithUTF8String: _internalMySQLRow[columnIndex]];
     
     NSNumberFormatter * formatter = [[NSNumberFormatter alloc] init];
     [formatter setNumberStyle:NSNumberFormatterDecimalStyle];
     
     return [formatter numberFromString: temp];
 } // End of numberForColumnIndex:
-
-#pragma mark -
-#pragma mark Row transforms
-
-- (NSDictionary *)asDictionary
-{
-    // the query was successful but has no columns
-    if ([self columnCount] == 0) {
-        return [NSDictionary dictionary];
-    }
-
-    NSMutableDictionary *rowDict = [NSMutableDictionary dictionary];
-    for (NSString *column in columnNames) {
-        NSUInteger columnIndex = [columnNames indexOfObject: column];
-        rowDict[column] = [self objectForColumnIndex: columnIndex];
-    }
-    return (NSDictionary*)rowDict;
-}
 
 
 @end

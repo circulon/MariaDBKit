@@ -12,14 +12,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MariaDBResultSet : NSObject
 
-- (BOOL) next: (NSError*__autoreleasing*) error NS_SWIFT_NOTHROW;
+
 - (id) objectForColumnIndex: (NSUInteger) columnIndex;
 - (id) objectForColumn: (NSString*) columnName;
 - (BOOL) columnIsNull:(NSString*)columnName;
-- (BOOL) columnIndexIsNull:(NSInteger)columnIndex;
-- (NSDictionary*) rowAsDictionary;
+- (BOOL) columnAtIndexIsNull:(NSInteger)columnIndex;
 
-@property(nonatomic,readonly) NSUInteger affectedRows;
+- (BOOL) nextRow;
+- (NSDictionary*) rowAsDictionary;
+- (NSArray *) allRows;
+- (void)reset;
+
+@property(nonatomic,readonly) NSUInteger rowCount;
 @property(nonatomic,retain,readonly) NSArray<NSString*>* columnNames;
 
 @end
