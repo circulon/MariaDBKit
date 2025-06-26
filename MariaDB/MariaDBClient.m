@@ -142,7 +142,7 @@
     } // End of execute query
     
     // Get our result
-    MYSQL_RES * res = mysql_use_result(mysql);
+    MYSQL_RES * res = mysql_store_result(mysql);
 
     MariaDBResultSet * resultSet = [[MariaDBResultSet alloc] initWithResult: res];
     
