@@ -388,11 +388,11 @@
 }
    
 - (BOOL)nextRow {
-    if (_currentRowIndex >= _totalRows) {
+    if (++_currentRowIndex >= _totalRows) {
         return NO;
     }
-
-    return [self _loadRowAtIndex:_currentRowIndex++];
+    
+    return [self _loadRowAtIndex:_currentRowIndex];
 }
    
 - (BOOL)_loadRowAtIndex:(unsigned long long)index {
